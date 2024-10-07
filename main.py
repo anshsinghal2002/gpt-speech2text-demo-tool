@@ -1,6 +1,10 @@
 from openai import OpenAI
 import os
 import json
+import pyaudio
+import wave
+from pydub import AudioSegment
+
 
 
 def get_secret_key():
@@ -56,11 +60,56 @@ def speech_prompt(client,audio_filepath = "gpt-test-file.m4a"):
     speech_2_text_completion = generate_corrected_transcript(0, system_prompt, audio_filepath,client)
     return speech_2_text_completion
 
+def record_audio_stream():
+    # Define some parameters
+    FORMAT = pyaudio.paInt16  # Audio format (16-bit)
+    CHANNELS = 1              # Mono audio
+    RATE = 44100              # Sample rate (44.1 kHz)
+    CHUNK = 1024              # Audio chunk size
+
+    # Initialize PyAudio
+    audio = pyaudio.PyAudio()
+
+    # Start recording
+    stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
+                    input=True, frames_per_buffer=CHUNK)
+    
+    print ('Recording...')
+    frames = []
+
+    try:
+        while True:
+            data = stream.read(CHUNK)
+            frames.append(data)
+    except KeyboardInterrupt:
+        print("Recording stopped")
+
+    # Stop and close the stream
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+
+    # Save frames as an audio segment
+    audio_data = b''.join(frames)
+    audio_segment = AudioSegment(
+        data=audio_data,
+        sample_width=2,  # 2 bytes for paInt16
+        frame_rate=RATE,
+        channels=CHANNELS
+    )
+
+    # Export as MP3
+    audio_segment.export("output.mp3", format="mp3")
 
 def main():
+    record_audio_stream()
+
+    run_prompt('./output.mp3')
+
+def run_prompt(audio_filepath):
     os.environ["OPENAI_API_KEY"] = get_secret_key()
     client = OpenAI()
-    speech_2_text_completion = speech_prompt(client,"gpt-test-file.m4a")
+    speech_2_text_completion = speech_prompt(client,audio_filepath)
     print (speech_2_text_completion)
 
 
